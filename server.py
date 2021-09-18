@@ -1,5 +1,8 @@
 #  coding: utf-8
 import socketserver
+from pathlib import Path
+
+import codes
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 #
@@ -27,29 +30,90 @@ import socketserver
 # try: curl -v -X GET http://127.0.0.1:8080/
 
 LIPSUM = 'Lorem ipsum dolor sit amet'
+HOST, PORT = "localhost", 8080
 
 
 class MyWebServer(socketserver.BaseRequestHandler):
+    __safe_path: Path = Path(__file__).joinpath('../www').resolve()
+    __response: bytes = b'HTTP/1.1 '
 
     def handle(self):
-        self.data = self.request.recv(1024).strip()
-        print("Got a request of: %s\n" % self.data)
+        self.data: bytes = self.request.recv(1024).strip()
+        print(f'Got a request of: {self.data}')
 
-        self.request.sendall(bytearray('HTTP/1.1 200 OK\r\n'
-                                       'Transfer-Encoding: chunked\r\n\r\n'
-                                       f'{to_chunk(LIPSUM)}'
-                                       '0\r\n\r\n',
-                                       'utf-8'))
+        # Check if HTTP method is valid
+        if self.data.split()[0] != b'GET':
+            self.__response += codes.RESP[405].encode()
 
+            self.request.sendall(self.__response)
+            print()
 
-def to_chunk(s: str, end: str = '\r\n') -> bytes:
-    s += end
-    return f'{len(s):X}\r\n{s}\r\n'
+            return
+
+        # extract the path from the request
+        path_bytes = self.data.split()[1]
+
+        self.path = Path('www' + path_bytes.decode()).resolve()
+
+        is_dir = self.path.is_dir()
+        is_file = self.path.is_file()
+
+        ending_slash = path_bytes[-1] == b'/'[0]
+
+        print(f'Request accessed the path {self.path}\n')
+
+        # https://stackoverflow.com/a/34236245/15240293
+        if (self.path != self.__safe_path and
+                self.__safe_path not in self.path.parents):
+            self.__response += codes.RESP[404].encode()
+
+            self.request.sendall(self.__response)
+
+            return
+
+        if is_dir and not ending_slash:
+            self.__response += (codes.RESP[301] %
+                                (self.path.name + '/')).encode()
+
+            self.request.sendall(self.__response)
+            print()
+
+            return
+
+        self.__response += codes.RESP[200].encode()
+
+        if is_dir or self.path == self.__safe_path / Path('index.html'):
+            content = self.__safe_path.joinpath('index.html').read_bytes()
+            self.__response += ((f'Content-Length:{len(content)}\r\n'
+                                 'Content-Type: text/html; charset=utf-8\r\n'
+                                 '\r\n').encode() +
+                                content)
+
+            self.request.sendall(self.__response)
+            print()
+
+            return
+
+        # TODO: THE FOLLOWING BLOCK IS **HIGHLY** TEMPORARY
+        if b'Accept: text/css' in self.data:
+            content = self.__safe_path.joinpath('base.css').read_bytes()
+            self.__response += ((f'Content-Length:{len(content)}\r\n'
+                                 'Content-Type: text/css; charset=utf-8\r\n'
+                                 '\r\n').encode() +
+                                content)
+
+            self.request.sendall(self.__response)
+            print()
+
+            return
+
+        self.__response += (f'Content-Length: {len(LIPSUM) + 2}\r\n\r\n'
+                            f'{LIPSUM}\r\n').encode()
+
+        self.request.sendall(self.__response)
 
 
 if __name__ == "__main__":
-    HOST, PORT = "localhost", 8080
-
     socketserver.TCPServer.allow_reuse_address = True
     # Create the server, binding to localhost on port 8080
     server = socketserver.TCPServer((HOST, PORT), MyWebServer)
