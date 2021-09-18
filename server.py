@@ -82,8 +82,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
         self.__response += codes.RESP[200].encode()
 
-        if is_dir or self.path == self.__safe_path / Path('index.html'):
-            content = self.__safe_path.joinpath('index.html').read_bytes()
+        if is_dir:
+            content = self.path.joinpath('index.html').read_bytes()
             self.__response += ((f'Content-Length:{len(content)}\r\n'
                                  'Content-Type: text/html; charset=utf-8\r\n'
                                  '\r\n').encode() +
@@ -94,11 +94,22 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
             return
 
-        # TODO: THE FOLLOWING BLOCK IS **HIGHLY** TEMPORARY
         if b'Accept: text/css' in self.data:
-            content = self.__safe_path.joinpath('base.css').read_bytes()
+            content = self.path.read_bytes()
             self.__response += ((f'Content-Length:{len(content)}\r\n'
                                  'Content-Type: text/css; charset=utf-8\r\n'
+                                 '\r\n').encode() +
+                                content)
+
+            self.request.sendall(self.__response)
+            print()
+
+            return
+
+        if b'Accept: text/html' in self.data:
+            content = self.path.read_bytes()
+            self.__response += ((f'Content-Length:{len(content)}\r\n'
+                                 'Content-Type: text/html; charset=utf-8\r\n'
                                  '\r\n').encode() +
                                 content)
 
