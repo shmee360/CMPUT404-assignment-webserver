@@ -34,7 +34,7 @@ HOST, PORT = "localhost", 8080
 
 
 class MyWebServer(socketserver.BaseRequestHandler):
-    __safe_path: Path = Path(__file__).joinpath('../www').resolve()
+    __safe_path: Path = (Path(__file__) / Path('../www')).resolve()
     __response: bytes = b'HTTP/1.1 '
 
     def handle(self):
@@ -80,48 +80,38 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
             return
 
+        index = self.path / Path('index.html')
+        if index.is_file():
+            content = index.read_bytes()
+            self.__response += ((codes.RESP[200] +
+                                 f'Content-Length:{len(content)}\r\n'
+                                 'Content-Type: text/html; charset=utf-8\r\n'
+                                 '\r\n').encode() +
+                                content)
+
+            self.request.sendall(self.__response)
+            print()
+
+            return
+
+        elif not is_file:
+            self.request.sendall(self.__response + codes.RESP[404].encode())
+            return
+
         self.__response += codes.RESP[200].encode()
 
-        if is_dir:
-            content = self.path.joinpath('index.html').read_bytes()
-            self.__response += ((f'Content-Length:{len(content)}\r\n'
-                                 'Content-Type: text/html; charset=utf-8\r\n'
-                                 '\r\n').encode() +
-                                content)
+        self.ext = self.path.name.split('.')[-1]
+        if self.ext in ('html', 'css'):
+            self.__response += (f'Content-Type: text/{self.ext};'
+                                'charset=utf-8\r\n').encode()
 
-            self.request.sendall(self.__response)
-            print()
-
-            return
-
-        if b'Accept: text/css' in self.data:
-            content = self.path.read_bytes()
-            self.__response += ((f'Content-Length:{len(content)}\r\n'
-                                 'Content-Type: text/css; charset=utf-8\r\n'
-                                 '\r\n').encode() +
-                                content)
-
-            self.request.sendall(self.__response)
-            print()
-
-            return
-
-        if b'Accept: text/html' in self.data:
-            content = self.path.read_bytes()
-            self.__response += ((f'Content-Length:{len(content)}\r\n'
-                                 'Content-Type: text/html; charset=utf-8\r\n'
-                                 '\r\n').encode() +
-                                content)
-
-            self.request.sendall(self.__response)
-            print()
-
-            return
-
-        self.__response += (f'Content-Length: {len(LIPSUM) + 2}\r\n\r\n'
-                            f'{LIPSUM}\r\n').encode()
+        content = self.path.read_bytes()
+        self.__response += ((f'Content-Length:{len(content)}\r\n'
+                             '\r\n').encode() +
+                            content)
 
         self.request.sendall(self.__response)
+        print()
 
 
 if __name__ == "__main__":
