@@ -23,6 +23,8 @@ import codes
 # some of the code is Copyright © 2001-2013 Python Software
 # Foundation; All Rights Reserved
 #
+# Modifications copyright © 2021 Warren Stix
+#
 # http://docs.python.org/2/library/socketserver.html
 #
 # run: python freetests.py
