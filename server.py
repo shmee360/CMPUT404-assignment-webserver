@@ -1,6 +1,8 @@
 #  coding: utf-8
 import socketserver
 from pathlib import Path
+from time import gmtime
+from time import strftime
 
 import codes
 
@@ -42,10 +44,12 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data: bytes = self.request.recv(1024).strip()
         print(f'Got a request of: {self.data}')
+        self.time = strftime('Date: %a, %d %b %Y %H:%M:%S GMT\r\n', gmtime()).encode()
 
         # Check if HTTP method is valid
         if self.data.split()[0] != b'GET':
             self.__response += codes.RESP[405].encode()
+            self.__response += self.time
 
             self.request.sendall(self.__response)
             print()
@@ -68,6 +72,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
         if (self.path != self.__safe_path and
                 self.__safe_path not in self.path.parents):
             self.__response += codes.RESP[404].encode()
+            self.__response += self.time
 
             self.request.sendall(self.__response)
 
@@ -76,6 +81,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
         if is_dir and not ending_slash:
             self.__response += (codes.RESP[301] %
                                 (self.path.name + '/')).encode()
+            self.__response += self.time
 
             self.request.sendall(self.__response)
             print()
@@ -88,7 +94,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
             self.__response += ((codes.RESP[200] +
                                  f'Content-Length:{len(content)}\r\n'
                                  'Content-Type: text/html; charset=utf-8\r\n'
-                                 '\r\n').encode() +
+                                 ).encode() +
+                                self.time + b'\r\n' +
                                 content)
 
             self.request.sendall(self.__response)
@@ -107,6 +114,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
             self.__response += (f'Content-Type: text/{self.ext};'
                                 'charset=utf-8\r\n').encode()
 
+        self.__response += self.time
+
         content = self.path.read_bytes()
         self.__response += ((f'Content-Length:{len(content)}\r\n'
                              '\r\n').encode() +
@@ -123,4 +132,7 @@ if __name__ == "__main__":
 
     # Activate the server; this will keep running until you
     # interrupt the program with Ctrl-C
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
